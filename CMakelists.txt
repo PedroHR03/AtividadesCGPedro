@@ -44,10 +44,7 @@ include_directories(${stb_image_SOURCE_DIR})
 
 # Lista de exemplos/exercícios podem ser colocados aqui também
 set(EXERCISES
-    Hello3D
-    TriangleTex
-    SpherePhong
-   
+    ExercicioTextura
 )
 
 add_compile_options(-Wno-pragmas)
@@ -71,7 +68,7 @@ if (NOT EXISTS ${GLAD_C_FILE})
     message(FATAL_ERROR "Arquivo glad.c não encontrado! Baixe a GLAD manualmente em https://glad.dav1d.de/ e coloque glad.h em include/glad/ e glad.c em common/")
 endif()
 
-# Cria os executáveis
+# Cria os executáveis dinamicamente a partir da lista
 foreach(EXERCISE ${EXERCISES})
     add_executable(${EXERCISE} src/${EXERCISE}.cpp ${GLAD_C_FILE})
     target_include_directories(${EXERCISE} PRIVATE ${CMAKE_SOURCE_DIR}/include/glad ${glm_SOURCE_DIR} ${stb_image_SOURCE_DIR})
