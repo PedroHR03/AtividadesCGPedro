@@ -50,7 +50,7 @@ inline string loadMTLTextureName(const string& mtlFilePath)
     return loadMTL(mtlFilePath).textureName;
 }
 
-// Carrega OBJ → buffer: position(3) | normal(3) | texcoord(2)  stride = 8
+// Carrega OBJ -> buffer: position(3) | normal(3) | texcoord(2)  stride = 8
 // Lê também o MTL e preenche 'material'
 inline GLuint loadSimpleOBJ(const string& filePATH, int& nVertices,
                              string& texturePath, Material* material = nullptr)

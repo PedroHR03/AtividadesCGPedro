@@ -1,5 +1,5 @@
 /* GB — Projeto Final de Computação Gráfica - Pedro
- * ── Controles ──────────────────────────────────────────────────────────────
+ *  Controles 
  *  Câmera:
  *    W/A/S/D     Mover    |   Mouse   Olhar ao redor   |   Scroll  Zoom
  *
@@ -24,7 +24,6 @@
  *    F5          Aumenta velocidade   F6  Diminui velocidade
  *
  *  ESC           Sair
- * ───────────────────────────────────────────────────────────────────────────
  */
 
 #include <iostream>
@@ -43,39 +42,32 @@
 
 using namespace std;
 
-// ─── Constantes ───────────────────────────────────────────────────────────
 const int   WIN_W = 1000, WIN_H = 750;
 const int   NUM_OBJS = 3;
 
-// ─── Protótipos ───────────────────────────────────────────────────────────
 GLuint loadTexture(const string& path);
 void   key_callback(GLFWwindow*, int, int, int, int);
 void   mouse_callback(GLFWwindow*, double, double);
 void   scroll_callback(GLFWwindow*, double, double);
 void   processInput(GLFWwindow*, float dt);
 
-// ─── Câmera ───────────────────────────────────────────────────────────────
 Camera camera(glm::vec3(0.0f, 1.0f, 8.0f), -90.0f, -10.0f);
 bool   firstMouse = true;
 float  lastX = WIN_W / 2.0f, lastY = WIN_H / 2.0f;
 
-// ─── Estado dos objetos ───────────────────────────────────────────────────
 int       objSelecionado  = 0;
 glm::vec3 posicao[NUM_OBJS]  = { {-3,0,0}, {0,0,0}, {3,0,0} };
 glm::vec3 rotacao[NUM_OBJS]  = { {0,0,0},  {0,0,0},  {0,0,0} };
 float     escala[NUM_OBJS]   = { 1.0f, 1.0f, 1.0f };
 
-// ─── Modo de visualização: textura ou cor do material ─────────────────────
 bool modoTextura = true;
 
-// ─── Luzes ────────────────────────────────────────────────────────────────
 bool luzAtiva[3] = { true, true, true };
 
-// ─── Animação Bézier ──────────────────────────────────────────────────────
 Bezier    bezier[NUM_OBJS];
 bool      animacaoAtiva = false;
 
-// ─── Shaders ──────────────────────────────────────────────────────────────
+// Shaders 
 const GLchar* vertexShaderSource = R"glsl(
 #version 330 core
 layout(location=0) in vec3 position;
@@ -155,7 +147,7 @@ void main()
 }
 )glsl";
 
-// ─── main ─────────────────────────────────────────────────────────────────
+// main 
 int main()
 {
     glfwInit();
@@ -189,7 +181,7 @@ int main()
     glLinkProgram(shader);
     glDeleteShader(vs); glDeleteShader(fs);
 
-    // --- Carregar OBJs (todos usam Suzanne) ---
+    // Carregar OBJs (todos usam Suzanne) 
     // Objetos 0 e 2: Suzanne normal. Objeto 1: SuzanneSubdiv1 para variar.
     const string objPaths[NUM_OBJS] = {
         "../assets/Modelos3D/Suzanne.obj",
@@ -209,7 +201,7 @@ int main()
                  : loadTexture("../assets/Modelos3D/" + texName);
     }
 
-    // --- Posição das luzes (3 pontos em relação ao centro da cena) ---
+    // Posição das luzes (3 pontos em relação ao centro da cena)
     glm::vec3 lightPos[3] = {
         glm::vec3( 4.0f,  3.0f,  4.0f),   // Key
         glm::vec3(-4.0f,  1.0f,  3.0f),   // Fill
@@ -221,7 +213,7 @@ int main()
         glm::vec3(0.7f,  0.8f,  1.0f) * 0.7f,
     };
 
-    // --- Trajetórias Bézier pré-definidas ---
+    // Trajetórias Bézier pré-definidas
     // Obj 0: laço em XZ
     bezier[0].velocidade = 0.6f;
     bezier[0].adicionarPonto({-3.0f, 0.0f,  0.0f});
@@ -248,7 +240,7 @@ int main()
 
     cout << "\n========= GB - Projeto Final =========" << endl;
     cout << "  TAB          Selecionar objeto" << endl;
-    cout << "  ← → ↑ ↓      Translação X/Z   |  I/K  Translação Y" << endl;
+    cout << "  ← → ↑ ↓      Translação X/Z   |  I/K  Translação Y" << endl; 
     cout << "  X / Y / Z    Rotação           |  +/-  Escala" << endl;
     cout << "  T            Textura / Material" << endl;
     cout << "  1 / 2 / 3    Key / Fill / Back light" << endl;
@@ -353,7 +345,7 @@ int main()
     return 0;
 }
 
-// ─── Funções de callback ───────────────────────────────────────────────────
+// Funções de callback 
 
 void processInput(GLFWwindow* window, float dt)
 {

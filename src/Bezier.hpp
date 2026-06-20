@@ -5,13 +5,9 @@
 
 /* Trajetória cíclica por curvas de Bézier cúbicas encadeadas.
  *
- * Segmentos explícitos: [0-3], [3-6], [6-9], ...
  * Segmento de fechamento automático: último ponto → primeiro ponto,
  * com tangentes calculadas a partir dos pontos de controle vizinhos
  * para garantir continuidade C1 (sem "solavanco" na junção).
- *
- * Se o último ponto já for igual ao primeiro (curva já fechada pelo
- * usuário), o segmento de fechamento é omitido.
  */
 class Bezier
 {
