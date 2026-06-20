@@ -1,16 +1,20 @@
 /* Visualizador de Cenários 3D - Pedro
  *
  * Controles de Interação:
- *   TAB       - Alterna o controle (Cubo 0 -> Cubo 1 -> Cubo 2 -> Todos os Cubos)
- *   W / S     - Move no eixo Y (Cima / Baixo)
+ *   TAB       - Alterna o controle (Cubo 0 -> Cubo 1 -> Cubo 2 -> Malha OBJ -> Todos)
+ *   W / S     - Move no eixo Z (Frente / Trás)
  *   A / D     - Move no eixo X (Esquerda / Direita)
- *   + / -     - Escala Uniforme (Aumentar / Diminuir)
+ *   I / J     - Move no eixo Y (Cima / Baixo)
+ *   ] / [     - Escala Uniforme (Aumentar / Diminuir)
  *   X / Y / Z - Rotação nos respectivos eixos
  *   ESC       - Sair
  */
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
 
 using namespace std;
 
@@ -26,11 +30,17 @@ using namespace std;
 // Constantes da Janela
 const GLuint WIDTH = 1000, HEIGHT = 1000;
 
+// Número total de objetos: 3 cubos + 1 malha OBJ
+const int NUM_OBJETOS = 4;
+// modoSelecao: 0..3 = objeto individual, 4 = TODOS
+const int MODO_TODOS = NUM_OBJETOS;
+
 // Protótipos
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
-void atualizarTransformacoes(int indiceCubo, int tecla);
-int setupShader();
-int setupGeometry();
+void atualizarTransformacoes(int indice, int tecla);
+GLuint setupShader();
+GLuint setupGeometry();
+GLuint loadSimpleOBJ(const string& filePath, int& nVertices);
 
 // Shaders básicos
 const GLchar* vertexShaderSource =
@@ -55,24 +65,34 @@ const GLchar* fragmentShaderSource =
     "}\n\0";
 
 // --- VARIÁVEIS GLOBAIS DE ESTADO ---
-// 0, 1 ou 2 controlam um cubo específico. 3 controla todos ao mesmo tempo.
-int modoSelecao = 0; 
+int modoSelecao = 0;
 
-// Arrays paralelos armazenando as propriedades independentes de cada um dos 3 cubos
-glm::vec3 posicoes[3] = { 
-    glm::vec3(-0.65f, 0.0f, 0.0f), 
-    glm::vec3( 0.00f, 0.0f, 0.0f), 
-    glm::vec3( 0.65f, 0.0f, 0.0f) 
+// Índices 0-2: cubos, índice 3: malha OBJ
+glm::vec3 posicoes[NUM_OBJETOS] = {
+    glm::vec3(-0.65f,  0.0f, 0.0f),
+    glm::vec3( 0.00f,  0.0f, 0.0f),
+    glm::vec3( 0.65f,  0.0f, 0.0f),
+    glm::vec3( 0.00f, -0.5f, 0.0f)  // malha OBJ abaixo dos cubos
 };
-float escalas[3] = { 0.3f, 0.3f, 0.3f };
-glm::vec3 rotacoes[3] = { 
-    glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f) 
+float escalas[NUM_OBJETOS]     = { 0.3f, 0.3f, 0.3f, 0.3f };
+glm::vec3 rotacoes[NUM_OBJETOS] = {
+    glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f)
 };
+
+int nVerticesMalha = 0;
 
 int main()
 {
     glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Visualizador 3D - Pedro", nullptr, nullptr);
+    if (!window) {
+        cout << "Falha ao criar janela GLFW" << endl;
+        glfwTerminate();
+        return -1;
+    }
     glfwMakeContextCurrent(window);
     glfwSetKeyCallback(window, key_callback);
 
@@ -84,10 +104,15 @@ int main()
     glViewport(0, 0, WIDTH, HEIGHT);
     glEnable(GL_DEPTH_TEST);
 
-    GLuint shaderID = setupShader();
-    GLuint VAO = setupGeometry();
+    GLuint shaderID  = setupShader();
+    GLuint vaoCubo   = setupGeometry();
+    GLuint vaoMalha  = loadSimpleOBJ("../assets/Modelos3D/Suzanne.obj", nVerticesMalha);
+
+    if (vaoMalha == 0) {
+        cout << "Aviso: malha OBJ nao carregada. Verifique o caminho do arquivo." << endl;
+    }
+
     glUseProgram(shaderID);
-    
     GLint modelLoc = glGetUniformLocation(shaderID, "model");
 
     // Loop Principal
@@ -95,69 +120,76 @@ int main()
     {
         glfwPollEvents();
 
-        // Atualiza o título da janela dinamicamente para mostrar o modo atual
-        string textoSelecao = (modoSelecao == 3) ? "[TODOS]" : "[Cubo " + to_string(modoSelecao) + "]";
-        string titulo = "Projeto CG | Selecionado: " + textoSelecao + " | Pressione TAB para trocar";
-        glfwSetWindowTitle(window, titulo.c_str());
+        // Título dinâmico
+        string nomeSelecao;
+        if      (modoSelecao == MODO_TODOS) nomeSelecao = "[TODOS]";
+        else if (modoSelecao == 3)          nomeSelecao = "[Malha OBJ]";
+        else                                nomeSelecao = "[Cubo " + to_string(modoSelecao) + "]";
+        glfwSetWindowTitle(window, ("Projeto CG | " + nomeSelecao + " | TAB para trocar").c_str());
 
-        // Cor de fundo levemente alterada para destacar os objetos
         glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glBindVertexArray(VAO);
-
-        // Renderiza os 3 cubos
+        // Renderiza os 3 cubos (VAO compartilhado, 36 vértices cada)
+        glBindVertexArray(vaoCubo);
         for (int i = 0; i < 3; i++)
         {
             glm::mat4 model = glm::mat4(1.0f);
-
-            // 1. Translação (Move para a posição do mundo)
             model = glm::translate(model, posicoes[i]);
-
-            // 2. Rotação (Aplica a rotação nos 3 eixos para este cubo específico)
             model = glm::rotate(model, rotacoes[i].x, glm::vec3(1.0f, 0.0f, 0.0f));
             model = glm::rotate(model, rotacoes[i].y, glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::rotate(model, rotacoes[i].z, glm::vec3(0.0f, 0.0f, 1.0f));
-
-            // 3. Escala Uniforme
             model = glm::scale(model, glm::vec3(escalas[i]));
-
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
             glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+        // Renderiza a malha OBJ (índice 3)
+        if (vaoMalha != 0 && nVerticesMalha > 0)
+        {
+            glBindVertexArray(vaoMalha);
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, posicoes[3]);
+            model = glm::rotate(model, rotacoes[3].x, glm::vec3(1.0f, 0.0f, 0.0f));
+            model = glm::rotate(model, rotacoes[3].y, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, rotacoes[3].z, glm::vec3(0.0f, 0.0f, 1.0f));
+            model = glm::scale(model, glm::vec3(escalas[3]));
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, nVerticesMalha);
         }
 
         glBindVertexArray(0);
         glfwSwapBuffers(window);
     }
 
-    glDeleteVertexArrays(1, &VAO);
+    glDeleteVertexArrays(1, &vaoCubo);
+    if (vaoMalha != 0) glDeleteVertexArrays(1, &vaoMalha);
     glfwTerminate();
     return 0;
 }
 
-// Função auxiliar para aplicar transformações ao cubo correto
-void atualizarTransformacoes(int indiceCubo, int tecla) {
-    float passoMover = 0.1f;
-    float passoEscala = 0.05f;
+void atualizarTransformacoes(int indice, int tecla)
+{
+    float passoMover   = 0.1f;
+    float passoEscala  = 0.05f;
     float passoRotacao = glm::radians(5.0f);
 
-    // Movimentação XY
-    if (tecla == GLFW_KEY_A) posicoes[indiceCubo].x -= passoMover;
-    if (tecla == GLFW_KEY_D) posicoes[indiceCubo].x += passoMover;
-    if (tecla == GLFW_KEY_W) posicoes[indiceCubo].y += passoMover;
-    if (tecla == GLFW_KEY_S) posicoes[indiceCubo].y -= passoMover;
+    if (tecla == GLFW_KEY_A) posicoes[indice].x -= passoMover;
+    if (tecla == GLFW_KEY_D) posicoes[indice].x += passoMover;
+    if (tecla == GLFW_KEY_W) posicoes[indice].z -= passoMover;
+    if (tecla == GLFW_KEY_S) posicoes[indice].z += passoMover;
+    if (tecla == GLFW_KEY_I) posicoes[indice].y += passoMover;
+    if (tecla == GLFW_KEY_J) posicoes[indice].y -= passoMover;
 
-    // Escala (Teclas =/+ e -/_)
-    if (tecla == GLFW_KEY_EQUAL || tecla == GLFW_KEY_KP_ADD) escalas[indiceCubo] += passoEscala;
-    if (tecla == GLFW_KEY_MINUS || tecla == GLFW_KEY_KP_SUBTRACT) {
-        escalas[indiceCubo] -= passoEscala;
-        if (escalas[indiceCubo] < 0.05f) escalas[indiceCubo] = 0.05f; // Limite mínimo
+    if (tecla == GLFW_KEY_RIGHT_BRACKET) escalas[indice] += passoEscala;
+    if (tecla == GLFW_KEY_LEFT_BRACKET) {
+        escalas[indice] -= passoEscala;
+        if (escalas[indice] < 0.05f) escalas[indice] = 0.05f;
     }
 
-    // Rotação
-    if (tecla == GLFW_KEY_X) rotacoes[indiceCubo].x += passoRotacao;
-    if (tecla == GLFW_KEY_Y) rotacoes[indiceCubo].y += passoRotacao;
-    if (tecla == GLFW_KEY_Z) rotacoes[indiceCubo].z += passoRotacao;
+    if (tecla == GLFW_KEY_X) rotacoes[indice].x += passoRotacao;
+    if (tecla == GLFW_KEY_Y) rotacoes[indice].y += passoRotacao;
+    if (tecla == GLFW_KEY_Z) rotacoes[indice].z += passoRotacao;
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
@@ -165,28 +197,23 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
-    // Lógica da Tecla TAB (Cicla entre 0, 1, 2 e 3)
     if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
         modoSelecao++;
-        if (modoSelecao > 3) modoSelecao = 0;
+        if (modoSelecao > MODO_TODOS) modoSelecao = 0;
     }
 
-    // Lógica de Movimento/Rotação/Escala (Aceita manter a tecla pressionada)
     if (action == GLFW_PRESS || action == GLFW_REPEAT)
     {
-        if (modoSelecao == 3) {
-            // Se o modo for 3 (TODOS), aplica a alteração nos índices 0, 1 e 2
-            for (int i = 0; i < 3; i++) {
+        if (modoSelecao == MODO_TODOS) {
+            for (int i = 0; i < NUM_OBJETOS; i++)
                 atualizarTransformacoes(i, key);
-            }
         } else {
-            // Aplica a alteração apenas no cubo selecionado
             atualizarTransformacoes(modoSelecao, key);
         }
     }
 }
 
-int setupShader()
+GLuint setupShader()
 {
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
@@ -206,7 +233,7 @@ int setupShader()
     return shaderProgram;
 }
 
-int setupGeometry()
+GLuint setupGeometry()
 {
     GLfloat vertices[] = {
         // Face Frontal (+Z) — Vermelho
@@ -259,12 +286,84 @@ int setupGeometry()
     };
 
     GLuint VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    return VAO;
+}
+
+GLuint loadSimpleOBJ(const string& filePath, int& nVertices)
+{
+    vector<glm::vec3> positions;
+    vector<GLfloat> vBuffer;
+    glm::vec3 color(1.0f, 0.5f, 0.2f); // cor laranja para a malha OBJ
+
+    ifstream file(filePath);
+    if (!file.is_open()) {
+        cerr << "Erro: nao foi possivel abrir " << filePath << endl;
+        nVertices = 0;
+        return 0;
+    }
+
+    string line;
+    while (getline(file, line)) {
+        istringstream ss(line);
+        string token;
+        ss >> token;
+
+        if (token == "v") {
+            glm::vec3 pos;
+            ss >> pos.x >> pos.y >> pos.z;
+            positions.push_back(pos);
+        }
+        else if (token == "f") {
+            // Cada token de face pode ser: v, v/vt, v/vt/vn ou v//vn
+            // Suporta faces triangulares e quads (fan triangulation)
+            vector<int> faceIndices;
+            string word;
+            while (ss >> word) {
+                int vi = stoi(word.substr(0, word.find('/'))) - 1;
+                faceIndices.push_back(vi);
+            }
+            // Fan triangulation: (0,1,2), (0,2,3), ...
+            for (int i = 1; i + 1 < (int)faceIndices.size(); i++) {
+                int tris[3] = { faceIndices[0], faceIndices[i], faceIndices[i+1] };
+                for (int vi : tris) {
+                    vBuffer.push_back(positions[vi].x);
+                    vBuffer.push_back(positions[vi].y);
+                    vBuffer.push_back(positions[vi].z);
+                    vBuffer.push_back(color.r);
+                    vBuffer.push_back(color.g);
+                    vBuffer.push_back(color.b);
+                }
+            }
+        }
+    }
+    file.close();
+
+    nVertices = (int)vBuffer.size() / 6;
+    cout << "Malha OBJ carregada: " << filePath << " (" << nVertices << " vertices)" << endl;
+
+    GLuint VBO, VAO;
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
+
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vBuffer.size() * sizeof(GLfloat), vBuffer.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
     glEnableVertexAttribArray(0);
