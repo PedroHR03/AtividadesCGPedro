@@ -45,3 +45,10 @@ Após a geração, extraia os arquivos baixados e coloque-os nos diretórios cor
 
 🚨 **Sem esses arquivos, a compilação falhará!** É necessário colocar esses arquivos nos diretórios corretos, conforme a orientação acima.
 
+Setup: Abaixo colarei os códigos necessários para rodar o projeto no terminal:
+cd C:\Users\...\Desktop\AtividadesCGPedro\build
+cmake .. -G "MinGW Makefiles"
+cmake --build . --target GB
+.\GB.exe
+Assets: Todos os assets usados foram os enviados para nossa aula
+Referências: Tudo que foi consultado foram materiais das aulas e alguns repositórios a algum tempo atrás, mas não consegui encontrar eles.
